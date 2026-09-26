@@ -106,7 +106,9 @@ hr{border:0;border-top:1px solid var(--line);margin:80px 0}
 .foot{border-top:1px solid var(--line);padding:28px;text-align:center;color:var(--faint);font:11px var(--mono)}
 .foot b{color:var(--accent);font-weight:600}
 .nav-brand{font:600 12px var(--mono);letter-spacing:.08em;color:var(--accent);white-space:nowrap}
-.nav-links{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.nav-tag{margin-left:auto;flex:none;font:600 12px var(--mono);letter-spacing:.04em;color:var(--accent);white-space:nowrap}
+@media(max-width:760px){.nav-tag{display:none}} /* footer carries the brand on small screens */
+.nav-links{min-width:0;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
 .nav-links a{color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:99px;white-space:nowrap}
 .nav-links a:hover{color:var(--ink);background:rgba(255,255,255,.06)}
 .nav-links a.ext{color:var(--accent);border:1px solid #77604b}
@@ -115,7 +117,7 @@ hr{border:0;border-top:1px solid var(--line);margin:80px 0}
 .to-top.show{opacity:1;visibility:visible;transform:none}
 .to-top:hover{background:var(--accent);color:var(--bg)}
 .hero{position:relative;isolation:isolate}
-.hero::before{content:"";position:absolute;inset:0 calc(50% - 50vw);z-index:-1;background:linear-gradient(90deg,rgba(12,16,21,.55),transparent 60%),linear-gradient(180deg,transparent 70%,var(--bg)),url(bg.png) center/cover no-repeat}
+.hero::before{content:"";position:absolute;inset:0 calc(50% - 50vw);z-index:-1;background:linear-gradient(90deg,rgba(12,16,21,.55),transparent 60%),linear-gradient(180deg,transparent 70%,var(--bg)),url(../img/bg.png) center/cover no-repeat}
 body{overflow-x:clip}
 </style>
 </head>
@@ -126,6 +128,7 @@ body{overflow-x:clip}
     <a href="../index.html">Home</a><a href="#results">Results</a><a href="#outlier">Outlier</a><a href="#method">Method</a><a href="#workloads">Workloads</a><a href="#repoatlas">RepoAtlas</a><a href="#article">Write-up</a><a href="#snapshot">Snapshot</a><a href="#reproduce">Reproduce</a>
     <a class="ext" href="gitnexus-graphify-codegraph-benchmark.html">Benchmark page →</a>
   </div>
+  <span class="nav-tag">@agenticcodingnewsletters</span>
 </nav>
 <main>
 
