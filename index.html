@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Project Atlas: a curated gallery of project write-ups, benchmarks and reports, each kept as presentable HTML in its own folder.">
+<title>Project Atlas</title>
+<style>
+:root{
+  --bg:#0c1015;--surface:#111820;--surface2:#151e27;--ink:#edf1f4;--muted:#9ca9b5;
+  --faint:#65717d;--line:#29333d;--accent:#e2a76f;--accent2:#8ea9c1;--max:1100px;
+  --sans:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;background:var(--bg)}
+body{margin:0;overflow-x:clip;background:radial-gradient(circle at 80% 0%,#17212a 0,transparent 34%),var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6}
+[id]{scroll-margin-top:72px}
+main{max-width:var(--max);margin:auto;padding:0 28px 100px}
+a{color:inherit;text-decoration:none}
+
+.nav{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:20px;height:56px;padding:0 28px;background:rgba(12,16,21,.88);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav-brand{font:600 12px var(--mono);letter-spacing:.08em;color:var(--accent);white-space:nowrap}
+.nav-links{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.nav-links a{color:var(--muted);font-size:13px;padding:6px 12px;border-radius:99px;white-space:nowrap}
+.nav-links a:hover{color:var(--ink);background:rgba(255,255,255,.06)}
+
+.hero{position:relative;isolation:isolate;min-height:520px;display:flex;flex-direction:column;justify-content:center;padding:80px 0}
+.hero::before{content:"";position:absolute;inset:0 calc(50% - 50vw);z-index:-1;background:linear-gradient(90deg,rgba(12,16,21,.55),transparent 60%),linear-gradient(180deg,transparent 70%,var(--bg)),url(bg.png) center/cover no-repeat}
+.eyebrow,.kicker{font:600 11px/1.2 var(--mono);letter-spacing:.14em;color:var(--accent)}
+.hero h1{font-size:clamp(44px,7vw,82px);line-height:.98;letter-spacing:-.055em;margin:24px 0}
+.hero h1 span{color:var(--accent)}
+.dek{font-size:clamp(18px,2.2vw,24px);color:var(--muted);max-width:640px;margin:0 0 32px}
+.hero-meta{display:flex;gap:10px;flex-wrap:wrap;color:var(--faint);font:11px var(--mono)}
+
+section{padding:56px 0}
+h2{font-size:clamp(26px,3.5vw,38px);letter-spacing:-.03em;line-height:1.1;margin:12px 0 28px}
+.about p{color:var(--muted);max-width:720px;font-size:17px;margin:0 0 14px}
+code{font-family:var(--mono);font-size:.9em;color:var(--accent2)}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.card{display:flex;flex-direction:column;border:1px solid var(--line);background:var(--surface);padding:22px;min-height:230px;transition:.2s}
+.card:hover{border-color:#77604b;background:var(--surface2);transform:translateY(-3px)}
+.card .tag{font:600 10px var(--mono);letter-spacing:.12em;color:var(--accent)}
+.card h3{font-size:20px;line-height:1.25;letter-spacing:-.02em;margin:12px 0 10px}
+.card p{color:var(--muted);font-size:14px;margin:0 0 18px;flex:1}
+.card .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.card .chips span{border:1px solid var(--line);padding:3px 8px;font:11px var(--mono);color:var(--faint)}
+.card .open{font:600 12px var(--mono);color:var(--accent)}
+.card.soon{border-style:dashed;background:transparent;justify-content:center;align-items:center;text-align:center;color:var(--faint);font:12px var(--mono)}
+.card.soon:hover{transform:none;border-color:var(--line);background:transparent}
+
+.pager{display:flex;justify-content:center;gap:6px;margin-top:32px}
+.pager button{min-width:38px;height:38px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font:600 13px var(--mono);cursor:pointer}
+.pager button:hover:not(:disabled){color:var(--ink);border-color:#77604b}
+.pager button.on{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.pager button:disabled{opacity:.35;cursor:default}
+
+footer{border-top:1px solid var(--line);padding:28px;text-align:center;color:var(--faint);font:11px var(--mono)}
+
+.to-top{position:fixed;right:24px;bottom:24px;width:48px;height:48px;border-radius:50%;border:1px solid var(--line);background:var(--surface2);color:var(--accent);font-size:20px;cursor:pointer;opacity:0;visibility:hidden;transform:translateY(8px);transition:.2s;z-index:10}
+.to-top.show{opacity:1;visibility:visible;transform:none}
+.to-top:hover{background:var(--accent);color:var(--bg)}
+
+@media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.grid{grid-template-columns:1fr}.nav{padding:0 14px}main{padding:0 16px 80px}.nav-brand{display:none}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+</style>
+</head>
+<body id="top">
+<nav class="nav" aria-label="Primary">
+  <span class="nav-brand">PROJECT ATLAS</span>
+  <div class="nav-links">
+    <a href="#top">Home</a><a href="#about">About</a><a href="#projects">Projects</a>
+  </div>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="eyebrow">VIBECODERS · PROJECT WRITE-UPS</div>
+  <h1>Project <span>Atlas</span></h1>
+  <p class="dek">Every project, mapped. Benchmarks, experiments and reports in one browsable place.</p>
+  <div class="hero-meta"><span>One folder per project</span><span>Plain HTML</span><span>No build step</span></div>
+</header>
+
+<section id="about" class="about">
+  <div class="kicker">01 · ABOUT</div>
+  <h2>A home for project details, presented properly.</h2>
+  <p>Each project lives in its own folder as ready-to-read HTML: write-ups, charts, results and reproduction steps. This page is the index that ties them together.</p>
+  <p>To add one, create a folder with an <code>index.html</code> and add an entry to the <code>projects</code> list in this file's script.</p>
+</section>
+
+<section id="projects">
+  <div class="kicker">02 · PROJECTS</div>
+  <h2>Browse the projects.</h2>
+  <div class="grid" id="grid"></div>
+  <nav class="pager" id="pager" aria-label="Pagination"></nav>
+</section>
+</main>
+
+<footer>Project Atlas · a collection of project write-ups · <b style="color:var(--accent)">@agenticcodingnewsletters</b></footer>
+
+<button class="to-top" id="to-top" aria-label="Back to top" title="Back to top">↑</button>
+<script>
+// Add new projects here. Page size below controls when pagination kicks in.
+const projects=[
+  {title:'Repo Benchmarks',tag:'BENCHMARK',href:'repo-benchmarks/index.html',
+   desc:'How GitNexus, Graphify and CodeGraph compare on cold, warm and incremental indexing, measured on one machine with an independent harness.',
+   chips:['GitNexus','Graphify','CodeGraph']},
+];
+const PER_PAGE=6; // 3 columns x 2 rows
+const grid=document.getElementById('grid'),pager=document.getElementById('pager');
+let page=1;
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function render(){
+  const pages=Math.max(1,Math.ceil(projects.length/PER_PAGE));
+  page=Math.min(page,pages);
+  const items=projects.slice((page-1)*PER_PAGE,page*PER_PAGE);
+  grid.innerHTML=items.map(p=>`<a class="card" href="${esc(p.href)}"><span class="tag">${esc(p.tag)}</span><h3>${esc(p.title)}</h3><p>${esc(p.desc)}</p><div class="chips">${p.chips.map(c=>`<span>${esc(c)}</span>`).join('')}</div><span class="open">Open project →</span></a>`).join('')
+    +(page===pages?'<div class="card soon">More projects coming soon</div>':'');
+  pager.hidden=pages<2;
+  pager.innerHTML=`<button ${page===1?'disabled':''} data-p="${page-1}" aria-label="Previous">‹</button>`
+    +Array.from({length:pages},(_,i)=>`<button class="${i+1===page?'on':''}" data-p="${i+1}">${i+1}</button>`).join('')
+    +`<button ${page===pages?'disabled':''} data-p="${page+1}" aria-label="Next">›</button>`;
+}
+pager.onclick=e=>{const b=e.target.closest('button');if(!b||b.disabled)return;page=+b.dataset.p;render();document.getElementById('projects').scrollIntoView({behavior:'smooth'})};
+render();
+const t=document.getElementById('to-top');
+addEventListener('scroll',()=>t.classList.toggle('show',scrollY>400),{passive:true});
+t.onclick=()=>scrollTo({top:0,behavior:'smooth'});
+</script>
+</body>
+</html>

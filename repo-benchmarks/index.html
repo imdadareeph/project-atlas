@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="A technical editorial about benchmarking GitNexus, Graphify, and CodeGraph using an independent local benchmark harness.">
+<title>How I Benchmarked GitNexus, Graphify, and CodeGraph</title>
+<style>
+:root{
+  --bg:#0c1015;--surface:#111820;--surface2:#151e27;--ink:#edf1f4;--muted:#9ca9b5;
+  --faint:#65717d;--line:#29333d;--accent:#e2a76f;--accent2:#8ea9c1;--max:1100px;
+  --sans:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;background:var(--bg)}
+body{margin:0;background:radial-gradient(circle at 80% 0%,#17212a 0,transparent 34%),var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.72}
+main{max-width:var(--max);margin:auto;padding:0 28px 120px}
+.hero{min-height:720px;display:flex;flex-direction:column;justify-content:center;border-bottom:1px solid var(--line);padding:90px 0 80px}
+.eyebrow,.section-kicker,.arch-title,.label{font:600 11px/1.2 var(--mono);letter-spacing:.14em;color:var(--accent)}
+.hero h1{font-size:clamp(44px,7vw,82px);line-height:.98;letter-spacing:-.055em;max-width:980px;margin:24px 0}
+.hero h1 span{color:#d8e1e7}
+.dek{font-size:clamp(19px,2.3vw,27px);color:var(--muted);max-width:680px;margin:0 0 55px}
+.hero-flow{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:20px 0 35px}
+.flow-group{display:flex;gap:8px;flex-wrap:wrap}
+.node,.phase,.arch-item,.chips span{border:1px solid var(--line);background:rgba(255,255,255,.025);padding:11px 14px;font:600 13px var(--mono);letter-spacing:-.01em}
+.node.primary{border-color:#77604b;background:rgba(226,167,111,.08);color:var(--accent)}
+.phase{font-size:11px;color:var(--muted)}
+.arrow{font-size:24px;color:var(--faint)}
+.hero-meta{display:flex;gap:10px;flex-wrap:wrap;color:var(--faint);font:11px var(--mono)}
+.hero-meta span{border-left:1px solid var(--line);padding-left:10px}
+.visual-section{padding:105px 0 40px;border-bottom:1px solid var(--line)}
+.visual-section h2{font-size:clamp(30px,4vw,52px);line-height:1.05;letter-spacing:-.04em;max-width:850px;margin:18px 0}
+.section-lead{font-size:18px;color:var(--muted);max-width:780px}
+.chart-panel,.outlier-panel,.architecture,.boundary{margin:40px 0;padding:28px;border:1px solid var(--line);background:rgba(17,24,32,.72)}
+.chart-head{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:25px}
+.note{font:11px var(--mono);color:var(--faint);margin-left:15px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tab{border:1px solid var(--line);background:none;color:var(--muted);padding:7px 10px;font:10px var(--mono);cursor:pointer}
+.tab.active,.tab:hover{color:var(--bg);background:var(--accent);border-color:var(--accent)}
+.bar-row{display:grid;grid-template-columns:105px 1fr 90px;gap:15px;align-items:center;margin:16px 0;font:12px var(--mono)}
+.bar-track{height:20px;background:#1a232c;position:relative}
+.bar-fill{height:100%;background:var(--accent);transform-origin:left;animation:grow .8s ease both}
+.bar-value{text-align:right;color:var(--ink)}
+.chart-note,.annotation{font-size:12px;color:var(--faint);margin-top:22px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.compact .bar-row{grid-template-columns:85px 1fr 85px}
+.ratio-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ratio{padding:18px 10px;border-left:1px solid var(--line)}
+.ratio strong{display:block;font-size:26px;letter-spacing:-.04em}
+.ratio small{font:10px var(--mono);color:var(--faint)}
+.outlier-panel{display:grid;grid-template-columns:1fr 1.7fr 1fr;gap:24px;align-items:end}
+.run span{display:block;font:10px var(--mono);color:var(--muted);margin-bottom:10px}
+.run b{font-size:27px;letter-spacing:-.04em}
+.run i{display:block;height:4px;background:var(--accent2);margin-top:13px}
+.run.outlier i{background:var(--accent);height:10px}
+.run.outlier b{color:var(--accent)}
+.architecture{display:grid;grid-template-columns:1fr auto 1.3fr auto 1fr;gap:20px;align-items:center}
+.arch-column{display:flex;flex-direction:column;gap:8px}
+.arch-title{margin-bottom:8px}
+.arch-item{font-size:12px}
+.arch-column small{color:var(--faint);font:10px var(--mono);margin-top:5px}
+.arch-connector{color:var(--accent);font-size:25px}
+.arch-column.central{padding:22px;border:1px solid #66513e;background:rgba(226,167,111,.04)}
+.repo-scale{margin:40px 0}
+.repo-row{display:grid;grid-template-columns:100px 1fr 110px;gap:18px;align-items:center;margin:22px 0;font:12px var(--mono)}
+.track{height:18px;background:#1a232c}
+.track i{display:block;height:100%;background:var(--accent2)}
+.repo-row:first-child .track i{background:var(--accent)}
+.boundary{display:grid;grid-template-columns:1fr 1px 1fr;gap:35px;align-items:center}
+.boundary-line{height:100px;background:var(--line)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}
+.repoatlas{font-size:34px;letter-spacing:-.04em;margin-top:15px;color:var(--accent)}
+.future small{color:var(--faint);font:11px var(--mono)}
+main>h1{font-size:48px;line-height:1.05;letter-spacing:-.04em;margin-top:120px}
+main>h2{font-size:32px;line-height:1.1;letter-spacing:-.03em;margin:80px 0 22px;padding-top:30px;border-top:1px solid var(--line)}
+main>p{max-width:790px;color:#c3ccd3;font-size:17px}
+main>p code,td code,pre code{font-family:var(--mono);color:#d9b992}
+.table-wrap{overflow-x:auto;margin:28px 0 38px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);text-align:left;border-bottom:1px solid var(--line);padding:11px 10px}
+td{padding:11px 10px;border-bottom:1px solid #202932;color:#cbd3d9}
+tr:hover td{background:rgba(255,255,255,.025)}
+.code{background:#080c10;border:1px solid var(--line);padding:20px;overflow:auto;color:#d5dde3;font:13px/1.65 var(--mono)}
+hr{border:0;border-top:1px solid var(--line);margin:80px 0}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media(max-width:760px){
+ main{padding:0 18px 80px}
+ .hero{min-height:620px;padding-top:60px}
+ .hero-flow{align-items:flex-start;flex-direction:column}
+ .arrow{transform:rotate(90deg);margin-left:12px}
+ .grid-2,.architecture,.outlier-panel,.boundary{grid-template-columns:1fr}
+ .boundary-line{height:1px;width:100%}
+ .bar-row{grid-template-columns:82px 1fr 72px}
+ .ratio-grid{grid-template-columns:1fr 1fr}
+ .hero h1{font-size:44px}
+ main>h1{font-size:38px}
+}
+@media(prefers-reduced-motion:reduce){
+ html{scroll-behavior:auto}
+ *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+
+.nav{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:20px;height:56px;padding:0 28px;background:rgba(12,16,21,.88);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav-brand:hover{color:var(--ink)}
+.foot{border-top:1px solid var(--line);padding:28px;text-align:center;color:var(--faint);font:11px var(--mono)}
+.foot b{color:var(--accent);font-weight:600}
+.nav-brand{font:600 12px var(--mono);letter-spacing:.08em;color:var(--accent);white-space:nowrap}
+.nav-links{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.nav-links a{color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;border-radius:99px;white-space:nowrap}
+.nav-links a:hover{color:var(--ink);background:rgba(255,255,255,.06)}
+.nav-links a.ext{color:var(--accent);border:1px solid #77604b}
+[id]{scroll-margin-top:72px}
+.to-top{position:fixed;right:24px;bottom:24px;width:48px;height:48px;border-radius:50%;border:1px solid var(--line);background:var(--surface2);color:var(--accent);font-size:20px;cursor:pointer;opacity:0;visibility:hidden;transform:translateY(8px);transition:.2s;z-index:10}
+.to-top.show{opacity:1;visibility:visible;transform:none}
+.to-top:hover{background:var(--accent);color:var(--bg)}
+.hero{position:relative;isolation:isolate}
+.hero::before{content:"";position:absolute;inset:0 calc(50% - 50vw);z-index:-1;background:linear-gradient(90deg,rgba(12,16,21,.55),transparent 60%),linear-gradient(180deg,transparent 70%,var(--bg)),url(bg.png) center/cover no-repeat}
+body{overflow-x:clip}
+</style>
+</head>
+<body id="top">
+<nav class="nav" aria-label="Primary">
+  <a class="nav-brand" href="../index.html">PROJECT ATLAS</a>
+  <div class="nav-links">
+    <a href="../index.html">Home</a><a href="#results">Results</a><a href="#outlier">Outlier</a><a href="#method">Method</a><a href="#workloads">Workloads</a><a href="#repoatlas">RepoAtlas</a><a href="#article">Write-up</a><a href="#snapshot">Snapshot</a><a href="#reproduce">Reproduce</a>
+    <a class="ext" href="gitnexus-graphify-codegraph-benchmark.html">Benchmark page →</a>
+  </div>
+</nav>
+<main>
+
+<section class="hero">
+  <div class="eyebrow">REPOSITORY INTELLIGENCE · LOCAL BENCHMARK</div>
+  <h1>How I Benchmarked <span>GitNexus</span>, <span>Graphify</span>, and <span>CodeGraph</span> on the Same Machine</h1>
+  <p class="dek">One machine. Three repositories. One independent benchmark harness.</p>
+  <div class="hero-flow" aria-label="Three repositories flow into one benchmark and three measurement phases">
+    <div class="flow-group">
+      <div class="node">GitNexus</div><div class="node">Graphify</div><div class="node">CodeGraph</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="node primary">repo-benchmark</div>
+    <div class="arrow">→</div>
+    <div class="flow-group phases">
+      <div class="phase">COLD</div><div class="phase">WARM</div><div class="phase">INCREMENTAL</div>
+    </div>
+  </div>
+  <div class="hero-meta"><span>Independent harness</span><span>LLM-free core benchmark</span><span>Wall · CPU · RSS</span></div>
+</section>
+
+<section class="visual-section" id="results">
+  <div class="section-kicker">01 · MEASURED RESULTS</div>
+  <h2>Three phases. Three very different execution profiles.</h2>
+  <p class="section-lead">The primary result is elapsed time, but the benchmark also records CPU time and peak resident memory. The charts below use the exact medians from the source article.</p>
+
+  <div class="chart-panel">
+    <div class="chart-head">
+      <div><span class="label">MEDIAN WALL-CLOCK TIME</span><span class="note">seconds · measured runs only</span></div>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-phase="all">ALL</button>
+        <button class="tab" data-phase="cold">COLD</button>
+        <button class="tab" data-phase="warm">WARM</button>
+        <button class="tab" data-phase="incremental">INCREMENTAL</button>
+      </div>
+    </div>
+    <div id="wall-chart" class="bars"></div>
+    <div class="chart-note">Measured on these specific repositories and native commands. This is not a universal performance ranking.</div>
+  </div>
+
+  <div class="grid-2">
+    <div class="chart-panel">
+      <div class="chart-head"><span class="label">PEAK RSS</span><span class="note">largest observed single process</span></div>
+      <div id="rss-chart" class="bars compact"></div>
+    </div>
+    <div class="chart-panel">
+      <div class="chart-head"><span class="label">CPU / WALL</span><span class="note">diagnostic ratio</span></div>
+      <div id="cpu-chart" class="ratio-grid"></div>
+      <div class="chart-note">CPU time can exceed wall time when work executes in parallel. This is not an efficiency score.</div>
+    </div>
+  </div>
+</section>
+
+<section class="visual-section" id="outlier">
+  <div class="section-kicker">02 · THE OUTLIER</div>
+  <h2>One cold run changed the shape of the GitNexus result.</h2>
+  <p class="section-lead">Two GitNexus cold runs landed around 63–65 seconds. One took 132.665 seconds. With only three measurements, the cause is not inferred; the median is retained as the primary statistic.</p>
+  <div class="outlier-panel">
+    <div class="run">
+      <span>RUN 01</span><b>64.956 s</b>
+      <i></i>
+    </div>
+    <div class="run outlier">
+      <span>RUN 02 · OBSERVED OUTLIER</span><b>132.665 s</b>
+      <i></i>
+    </div>
+    <div class="run">
+      <span>RUN 03</span><b>62.777 s</b>
+      <i></i>
+    </div>
+  </div>
+</section>
+
+<section class="visual-section" id="method">
+  <div class="section-kicker">03 · METHOD</div>
+  <h2>The benchmark is deliberately separated from the systems under test.</h2>
+  <div class="architecture">
+    <div class="arch-column">
+      <span class="arch-title">SYSTEMS UNDER TEST</span>
+      <div class="arch-item">GitNexus</div>
+      <div class="arch-item">Graphify</div>
+      <div class="arch-item">CodeGraph</div>
+    </div>
+    <div class="arch-connector">→</div>
+    <div class="arch-column central">
+      <span class="arch-title">INDEPENDENT HARNESS</span>
+      <div class="arch-item">repo-benchmark</div>
+      <small>benchmark.toml · run.sh · src/ · results/</small>
+    </div>
+    <div class="arch-connector">→</div>
+    <div class="arch-column">
+      <span class="arch-title">EVIDENCE</span>
+      <div class="arch-item">Cold</div>
+      <div class="arch-item">Warm</div>
+      <div class="arch-item">Incremental</div>
+      <small>Wall · CPU · RSS</small>
+    </div>
+  </div>
+</section>
+
+<section class="visual-section" id="workloads">
+  <div class="section-kicker">04 · WORKLOAD BOUNDARY</div>
+  <h2>The repositories are not equivalent workloads.</h2>
+  <div class="repo-scale">
+    <div class="repo-row"><span>GitNexus</span><div class="track"><i style="width:100%"></i></div><b>3.501M LOC</b></div>
+    <div class="repo-row"><span>CodeGraph</span><div class="track"><i style="width:67.2%"></i></div><b>2.353M LOC</b></div>
+    <div class="repo-row"><span>Graphify</span><div class="track"><i style="width:4.85%"></i></div><b>0.170M LOC</b></div>
+  </div>
+  <p class="annotation">LOC is useful for a scaling diagnostic, but it does not fully capture language mix, file-size distribution, graph density, generated code, parsing complexity, or the amount of work performed by each implementation.</p>
+</section>
+
+<section class="visual-section" id="repoatlas">
+  <div class="section-kicker">05 · REPOATLAS</div>
+  <h2>Baseline first. RepoAtlas second.</h2>
+  <div class="boundary">
+    <div>
+      <span class="arch-title">CURRENT BASELINE</span>
+      <div class="chips"><span>GitNexus</span><span>Graphify</span><span>CodeGraph</span></div>
+    </div>
+    <div class="boundary-line"></div>
+    <div class="future">
+      <span class="arch-title">FUTURE COMPARISON</span>
+      <div class="repoatlas">RepoAtlas</div>
+      <small>Not yet benchmarked</small>
+    </div>
+  </div>
+</section>
+<h1>How I Benchmarked GitNexus, Graphify, and CodeGraph on the Same Machine</h1>
+<h2 id="article">Why I Built a Benchmark Instead of Comparing Features</h2>
+<p>When I started looking at repository intelligence tools, I found that GitNexus, Graphify, and CodeGraph approach code intelligence from different directions. They all build useful representations of a codebase, but comparing them from documentation, screenshots, feature lists, or isolated benchmark numbers does not answer a very practical question: what actually happens when I run them against real repositories on the same machine?</p>
+<p>So I decided to build my own reproducible benchmark.</p>
+<p>The goal was not to declare a universal winner. The goal was to create a controlled baseline that I could run locally, inspect, reproduce, and eventually extend to RepoAtlas.</p>
+<p>That distinction matters because the repositories, languages, graph structures, indexing strategies, and command semantics are different. A raw statement such as &quot;Tool A is faster than Tool B&quot; can easily become misleading when the underlying workloads are not equivalent.</p>
+<h2>Keeping the Three Repositories Together</h2>
+<p>I first kept the three reference repositories together under one directory called <code>repotlas-references</code>.</p>
+<p>The structure is intentionally simple.</p>
+<div class="table-wrap"><table><thead><tr><th>Repository</th><th>Benchmark role</th></tr></thead><tbody>
+<tr><td>`GitNexus`</td><td>GitNexus reference implementation</td></tr>
+<tr><td>`graphify`</td><td>Graphify reference implementation</td></tr>
+<tr><td>`codegraph`</td><td>CodeGraph reference implementation</td></tr>
+</tbody></table></div>
+<p>This gave me a clean local boundary around the systems I wanted to compare.</p>
+<p>I did not modify the three repositories to make them conform to each other. Instead, I inspected how each project actually works and used its own native command for the corresponding benchmark phase.</p>
+<p>That was important because forcing every system through an artificial common command would potentially benchmark the wrapper rather than the actual implementation.</p>
+<h2>Building a Separate Benchmark Project</h2>
+<p>Instead of putting benchmark logic inside any of the three repositories, I created a separate project called <code>repo-benchmark</code>.</p>
+<p>The benchmark project owns the experiment, while the three repositories remain reference subjects.</p>
+<p>The resulting workspace looks approximately like this.</p>
+<div class="table-wrap"><table><thead><tr><th>Area</th><th>Purpose</th></tr></thead><tbody>
+<tr><td>`repo-benchmark/`</td><td>Independent benchmark harness</td></tr>
+<tr><td>`repo-benchmark/src/`</td><td>Benchmark implementation</td></tr>
+<tr><td>`repo-benchmark/queries/`</td><td>Planned query workload definitions</td></tr>
+<tr><td>`repo-benchmark/golden/`</td><td>Golden/reference data</td></tr>
+<tr><td>`repo-benchmark/results/raw/`</td><td>Raw benchmark output</td></tr>
+<tr><td>`repo-benchmark/results/normalized/`</td><td>Normalized JSON results</td></tr>
+<tr><td>`repo-benchmark/results/reports/`</td><td>Generated reports</td></tr>
+<tr><td>`repo-benchmark/benchmark.toml`</td><td>Benchmark configuration</td></tr>
+<tr><td>`repo-benchmark/run.sh`</td><td>Simple benchmark entry point</td></tr>
+<tr><td>`repotlas-references/GitNexus/`</td><td>GitNexus checkout</td></tr>
+<tr><td>`repotlas-references/graphify/`</td><td>Graphify checkout</td></tr>
+<tr><td>`repotlas-references/codegraph/`</td><td>CodeGraph checkout</td></tr>
+</tbody></table></div>
+<p>The important architectural decision was separation. The benchmark harness does not become part of GitNexus, Graphify, or CodeGraph, and the tools do not know that they are being benchmarked.</p>
+<h2>Verifying the Real Commands First</h2>
+<p>Before collecting numbers, I verified the actual local versions and commands.</p>
+<p>GitNexus was tested at version 1.6.12. For cold indexing I removed the existing <code>.gitnexus</code> state and ran <code>node gitnexus/dist/cli/index.js analyze . --index-only</code>. For warm and incremental measurements I reused the same analysis command against the existing state.</p>
+<p>Graphify was tested at version 0.9.63. I used <code>.venv/bin/graphify extract . --code-only</code>. The <code>--code-only</code> option was important because I wanted the core benchmark to remain LLM-free and measure local code extraction rather than introduce an additional model dependency.</p>
+<p>CodeGraph was tested at version 1.6.0. Cold initialization used <code>node dist/bin/codegraph.js init -y .</code>, while warm and incremental measurements used <code>node dist/bin/codegraph.js sync .</code> against the existing <code>.codegraph</code> state.</p>
+<div class="table-wrap"><table><thead><tr><th>Tool</th><th>Version</th><th>Cold operation</th><th>Warm / incremental operation</th></tr></thead><tbody>
+<tr><td>GitNexus</td><td>1.6.12</td><td>`analyze . --index-only` after removing `.gitnexus`</td><td>`analyze . --index-only`</td></tr>
+<tr><td>Graphify</td><td>0.9.63</td><td>`extract . --code-only` after removing output</td><td>`extract . --code-only`</td></tr>
+<tr><td>CodeGraph</td><td>1.6.0</td><td>`init -y .` after removing `.codegraph`</td><td>`sync .`</td></tr>
+</tbody></table></div>
+<p>I also deliberately avoided GitNexus <code>--force</code> because that mode could reuse parser output and would therefore change what the cold measurement represented.</p>
+<p>For Graphify, I did not use <code>update .</code> as the incremental benchmark because the observed behavior re-extracts every code file. I wanted the incremental command to represent the tool&#x27;s existing synchronization behavior instead.</p>
+<h2>Making the Core Benchmark LLM-Free</h2>
+<p>One of the most important decisions was to keep the core benchmark independent of an LLM.</p>
+<p>The benchmark therefore measures repository processing rather than agent behavior. Ollama is intentionally reserved for a separate future benchmark where I can evaluate how well an agent uses the generated repository intelligence.</p>
+<p>This separation prevents indexing performance, retrieval performance, model quality, token usage, and agent behavior from becoming one confusing metric.</p>
+<h2>Three Benchmark Phases</h2>
+<p>I divided the benchmark into three primary phases: cold, warm, and incremental.</p>
+<p>Cold means starting without the tool&#x27;s existing repository index or state. This measures the initial repository analysis or graph construction path.</p>
+<p>Warm means running the tool again when its existing state is already present. This measures what happens when the repository has already been processed.</p>
+<p>Incremental means making a controlled change to one tracked source file, running the tool, and then restoring the file byte-for-byte. This provides an initial measurement of how the tools behave when the repository changes.</p>
+<p>Each phase used one warmup followed by three measured runs.</p>
+<div class="table-wrap"><table><thead><tr><th>Phase</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>Cold</td><td>Fresh repository analysis/index construction</td></tr>
+<tr><td>Warm</td><td>Existing index/state already present</td></tr>
+<tr><td>Incremental</td><td>Controlled tracked-file modification followed by synchronization</td></tr>
+<tr><td>Warmup</td><td>One non-measured run</td></tr>
+<tr><td>Measurements</td><td>Three measured runs per tool and phase</td></tr>
+</tbody></table></div>
+<p>The benchmark recorded wall-clock time, CPU time, and peak resident memory.</p>
+<h2>The Repositories Were Not the Same Size</h2>
+<p>One of the first things the benchmark made obvious is that these repositories are not equivalent workloads.</p>
+<p>The source census showed the following.</p>
+<div class="table-wrap"><table><thead><tr><th>Tool</th><th>Source files</th><th>Source LOC</th><th>Total files</th></tr></thead><tbody>
+<tr><td>GitNexus</td><td>4,765</td><td>3,501,090</td><td>6,305</td></tr>
+<tr><td>CodeGraph</td><td>713</td><td>2,352,944</td><td>1,101</td></tr>
+<tr><td>Graphify</td><td>445</td><td>169,766</td><td>1,467</td></tr>
+</tbody></table></div>
+<p>GitNexus contains the largest number of source files and the largest source LOC count in this baseline.</p>
+<p>CodeGraph has substantially fewer source files than GitNexus but still contains more than 2.35 million source LOC.</p>
+<p>Graphify is much smaller in source LOC than the other two.</p>
+<p>That immediately made one thing clear: raw wall-clock time cannot be treated as a fair universal ranking. I therefore included LOC-normalized diagnostics, while explicitly treating them as diagnostics rather than definitive throughput measurements.</p>
+<h2>Cold Benchmark Results</h2>
+<p>The cold measurements were the most interesting because they exposed both performance differences and variability.</p>
+<div class="table-wrap"><table><thead><tr><th>Tool</th><th>Median wall</th><th>Median CPU</th><th>Max RSS</th></tr></thead><tbody>
+<tr><td>GitNexus</td><td>64.955 s</td><td>271.359 s</td><td>6,178.7 MB</td></tr>
+<tr><td>Graphify</td><td>10.026 s</td><td>12.116 s</td><td>602.9 MB</td></tr>
+<tr><td>CodeGraph</td><td>9.913 s</td><td>28.184 s</td><td>3,424.1 MB</td></tr>
+</tbody></table></div>
+<p>GitNexus had a particularly interesting cold run. Two runs completed at approximately 63 to 65 seconds, while one run took 132.665 seconds.</p>
+<div class="table-wrap"><table><thead><tr><th>GitNexus cold run</th><th>Wall time</th><th>CPU time</th><th>Peak RSS</th></tr></thead><tbody>
+<tr><td>Run 1</td><td>64.956 s</td><td>271.359 s</td><td>5,739.2 MB</td></tr>
+<tr><td>Run 2</td><td>132.665 s</td><td>287.590 s</td><td>6,178.7 MB</td></tr>
+<tr><td>Run 3</td><td>62.777 s</td><td>264.857 s</td><td>5,903.9 MB</td></tr>
+</tbody></table></div>
+<p>The CPU increase in the outlier was much smaller than the wall-clock increase. With only three measured runs, I am not attributing a cause to that behavior. Instead, I treat it as an observed outlier and use the median rather than the mean as the primary statistic.</p>
+<p>Graphify was extremely consistent during cold indexing.</p>
+<p>CodeGraph was also very consistent, although its cold memory footprint was considerably larger than Graphify&#x27;s.</p>
+<h2>Warm Benchmark Results</h2>
+<p>The warm phase produced a very different picture.</p>
+<div class="table-wrap"><table><thead><tr><th>Tool</th><th>Median wall</th><th>Median CPU</th><th>Max RSS</th></tr></thead><tbody>
+<tr><td>GitNexus</td><td>17.503 s</td><td>30.295 s</td><td>2,554.1 MB</td></tr>
+<tr><td>Graphify</td><td>4.787 s</td><td>7.552 s</td><td>262.0 MB</td></tr>
+<tr><td>CodeGraph</td><td>0.352 s</td><td>0.254 s</td><td>106.6 MB</td></tr>
+</tbody></table></div>
+<p>The measured CodeGraph warm operation was sub-second on this workload.</p>
+<p>GitNexus remained in the multi-second range, while Graphify completed in under five seconds.</p>
+<p>Again, this is a measurement of the particular commands and repositories used here. It should not be interpreted as a universal statement about the underlying tools.</p>
+<h2>Incremental Benchmark Results</h2>
+<p>The incremental phase was designed around a controlled source-file modification.</p>
+<p>The harness modifies a tracked source file with a unique comment, executes the tool&#x27;s incremental/warm synchronization command, and then restores the file byte-for-byte.</p>
+<p>The measured results were:</p>
+<div class="table-wrap"><table><thead><tr><th>Tool</th><th>Median wall</th><th>Median CPU</th><th>Max RSS</th></tr></thead><tbody>
+<tr><td>GitNexus</td><td>26.060 s</td><td>45.388 s</td><td>3,596.2 MB</td></tr>
+<tr><td>Graphify</td><td>4.837 s</td><td>7.625 s</td><td>264.7 MB</td></tr>
+<tr><td>CodeGraph</td><td>0.462 s</td><td>0.346 s</td><td>123.2 MB</td></tr>
+</tbody></table></div>
+<p>CodeGraph&#x27;s measured incremental operation was again sub-second.</p>
+<p>GitNexus and Graphify both completed successfully but required substantially more elapsed time on this workload.</p>
+<p>The important caveat is that this experiment does not yet prove exactly how much of the repository each tool reparses or how dependency propagation differs internally. That requires a more detailed incremental workload and instrumentation.</p>
+<h2>Memory Was Another Clear Dimension</h2>
+<p>Performance is not just elapsed time.</p>
+<p>The cold peak RSS measurements showed a significant difference between the three tools.</p>
+<div class="table-wrap"><table><thead><tr><th>Tool</th><th>Cold peak RSS</th><th>Warm peak RSS</th><th>Incremental peak RSS</th></tr></thead><tbody>
+<tr><td>GitNexus</td><td>6.18 GB</td><td>2.55 GB</td><td>3.60 GB</td></tr>
+<tr><td>Graphify</td><td>0.60 GB</td><td>0.26 GB</td><td>0.26 GB</td></tr>
+<tr><td>CodeGraph</td><td>3.42 GB</td><td>0.11 GB</td><td>0.12 GB</td></tr>
+</tbody></table></div>
+<p>Graphify had the lowest observed memory footprint in all three phases.</p>
+<p>GitNexus had the highest observed peak RSS in the cold benchmark.</p>
+<p>CodeGraph had a relatively large cold initialization footprint but a very small warm and incremental footprint.</p>
+<p>The benchmark currently measures peak resident memory as the largest observed single process, rather than summing the complete process tree. That limitation is important and is one of the areas I want to improve in the next version.</p>
+<h2>CPU Time Revealed Another Dimension</h2>
+<p>I also compared CPU time against wall time as a diagnostic.</p>
+<div class="table-wrap"><table><thead><tr><th>Phase</th><th>GitNexus</th><th>Graphify</th><th>CodeGraph</th></tr></thead><tbody>
+<tr><td>Cold CPU / wall</td><td>~4.18×</td><td>~1.21×</td><td>~2.84×</td></tr>
+<tr><td>Warm CPU / wall</td><td>~1.73×</td><td>~1.58×</td><td>~0.72×</td></tr>
+<tr><td>Incremental CPU / wall</td><td>~1.74×</td><td>~1.58×</td><td>~0.75×</td></tr>
+</tbody></table></div>
+<p>The ratios suggest significant parallelism in some phases, particularly GitNexus and CodeGraph cold processing.</p>
+<p>This is not an efficiency score. It is simply another way of looking at the relationship between elapsed time and accumulated CPU time.</p>
+<h2>Normalizing Against Source LOC</h2>
+<p>Because the repositories have very different sizes, I calculated a diagnostic value of seconds per million source lines of code.</p>
+<div class="table-wrap"><table><thead><tr><th>Tool</th><th>Source LOC</th><th>Cold median wall</th><th>sec/MLOC</th><th>Approx. MLOC/s</th></tr></thead><tbody>
+<tr><td>GitNexus</td><td>3.501M</td><td>64.955 s</td><td>18.55</td><td>0.0539</td></tr>
+<tr><td>Graphify</td><td>0.170M</td><td>10.026 s</td><td>59.06</td><td>0.0169</td></tr>
+<tr><td>CodeGraph</td><td>2.353M</td><td>9.913 s</td><td>4.21</td><td>0.2374</td></tr>
+</tbody></table></div>
+<p>These values are useful for asking scaling questions, but I would not use them as definitive parser throughput numbers.</p>
+<p>LOC alone does not capture language mix, file-size distribution, graph density, generated code, parsing complexity, or the amount of work performed by each implementation.</p>
+<h2>What I Found Most Interesting</h2>
+<p>The first major observation was that the three tools exhibit very different execution profiles.</p>
+<p>GitNexus showed substantial cold processing time, substantial CPU usage, and the largest observed memory footprint. Its cold benchmark also showed a clear timing outlier.</p>
+<p>Graphify was remarkably consistent and had the smallest observed memory footprint.</p>
+<p>CodeGraph showed a large cold initialization footprint but extremely short warm and incremental operations on this workload.</p>
+<p>The second major observation was that cold performance tells only part of the story. Once state exists, the execution characteristics change significantly.</p>
+<p>The third observation was that reproducibility matters. Without running the same commands multiple times, I could easily have mistaken a single GitNexus cold run for representative behavior.</p>
+<h2>What I Am Not Claiming</h2>
+<p>I am deliberately not saying that one of these tools is universally faster.</p>
+<p>The repositories are different sizes. The implementations have different semantics. The benchmark commands do different amounts of work. The sample size is still small.</p>
+<p>What I can say is that on this specific local workload and these exact benchmark commands, the measured behavior was materially different across GitNexus, Graphify, and CodeGraph.</p>
+<p>That is a much more useful starting point than an unsupported general ranking.</p>
+<h2>The Current Benchmark Limitations</h2>
+<p>The benchmark currently has three measured runs per phase, which is enough to expose obvious behavior but not enough for strong statistical conclusions.</p>
+<p>The repositories also differ in language composition, source volume, file distribution, graph structure, and implementation architecture.</p>
+<p>The process monitor samples the process tree, so very short-lived child processes can potentially be missed. Peak RSS currently represents the largest observed single process rather than the sum of all processes.</p>
+<p>The current benchmark also does not yet measure query latency, semantic graph correctness, failure recovery, restart determinism, worker-count scaling, or end-to-end agent effectiveness.</p>
+<p>Those are separate dimensions that need their own controlled experiments.</p>
+<h2>Why I Kept RepoAtlas Out of This First Baseline</h2>
+<p>RepoAtlas is the system I ultimately want to evaluate alongside these projects.</p>
+<p>But I intentionally did not add it to this first benchmark.</p>
+<p>I wanted to establish a baseline methodology first rather than changing the methodology to fit RepoAtlas after seeing the numbers.</p>
+<p>The idea is simple: define the benchmark, validate the commands, collect the baseline, document the limitations, and only then introduce RepoAtlas as another implementation under the same rules.</p>
+<p>That should make the eventual comparison much easier to reason about.</p>
+<h2>What I Want to Benchmark Next</h2>
+<p>The next version needs to go beyond a single repository per tool.</p>
+<p>I want small, medium, large, and enterprise-scale repository tiers, more measured repetitions, controlled worker-count sweeps, better process-tree resource accounting, query latency, query correctness, graph correctness, and multiple types of incremental changes.</p>
+<div class="table-wrap"><table><thead><tr><th>Area</th><th>Current benchmark</th><th>Next step</th></tr></thead><tbody>
+<tr><td>Repository size</td><td>One workload per tool</td><td>Multiple size tiers</td></tr>
+<tr><td>Runs</td><td>3 measured runs</td><td>5–10 measured runs</td></tr>
+<tr><td>Statistics</td><td>Median, mean, stddev</td><td>Add p95 and p99</td></tr>
+<tr><td>Worker counts</td><td>Default</td><td>1 / 2 / 4 / 8 / max</td></tr>
+<tr><td>Incremental</td><td>Small source edit</td><td>Multiple mutation types</td></tr>
+<tr><td>Queries</td><td>Not yet</td><td>Query latency and correctness</td></tr>
+<tr><td>Graph correctness</td><td>Not yet</td><td>Golden graph validation</td></tr>
+<tr><td>Failure handling</td><td>Not yet</td><td>Failure-injection suite</td></tr>
+<tr><td>Resource accounting</td><td>Basic</td><td>Improved process-tree accounting</td></tr>
+<tr><td>Agent benchmark</td><td>Separate future phase</td><td>Ollama-based evaluation</td></tr>
+<tr><td>RepoAtlas</td><td>Excluded</td><td>Add after baseline formalization</td></tr>
+</tbody></table></div>
+<h2>Separating Engine Benchmarks from Agent Benchmarks</h2>
+<p>I also want to keep another distinction clear.</p>
+<p>An indexing engine can be fast while an agent built on top of it can still perform poorly. Conversely, a repository intelligence system might provide more useful context to an agent even if its raw indexing time is not the lowest.</p>
+<p>That is why I plan to keep the Ollama-based agent benchmark separate.</p>
+<p>The agent benchmark can evaluate tool calls, task correctness, evidence quality, completeness, unsupported claims, token consumption, and end-to-end latency without contaminating the core repository-processing measurements.</p>
+<h2>The Bigger Goal</h2>
+<p>This benchmark is not really about producing a leaderboard.</p>
+<p>It is about creating an evidence layer for repository intelligence.</p>
+<p>GitNexus, Graphify, and CodeGraph each provide different approaches to understanding source code. By putting their repositories in one controlled workspace and building an independent benchmark harness around them, I now have a repeatable way to measure what happens on my machine rather than relying only on feature descriptions.</p>
+<p>The benchmark results are now stored as normalized JSON, with the intention of generating formal reports from those results.</p>
+<p>The complete benchmark analysis and tables can be included alongside this article as the detailed technical report.</p>
+<h2>Final Takeaway</h2>
+<p>The most useful result of this experiment was not a single number.</p>
+<p>It was the benchmark itself.</p>
+<p>I now have one independent project that can run controlled cold, warm, and incremental experiments against GitNexus, Graphify, and CodeGraph, record wall time, CPU time, and memory, preserve the raw and normalized results, and provide a foundation for deeper experiments.</p>
+<p>The next step is to bring RepoAtlas into that environment only after the methodology is mature enough to make the comparison meaningful.</p>
+<p>That is how I want to approach repository intelligence: not by asking which tool sounds better, but by building reproducible experiments and collecting evidence.</p>
+<hr>
+<h2 id="snapshot">Benchmark Snapshot</h2>
+<div class="table-wrap"><table><thead><tr><th>Dimension</th><th>GitNexus</th><th>Graphify</th><th>CodeGraph</th></tr></thead><tbody>
+<tr><td>Source files</td><td>4,765</td><td>445</td><td>713</td></tr>
+<tr><td>Source LOC</td><td>3,501,090</td><td>169,766</td><td>2,352,944</td></tr>
+<tr><td>Cold median wall</td><td>64.955 s</td><td>10.026 s</td><td>9.913 s</td></tr>
+<tr><td>Warm median wall</td><td>17.503 s</td><td>4.787 s</td><td>0.352 s</td></tr>
+<tr><td>Incremental median wall</td><td>26.060 s</td><td>4.837 s</td><td>0.462 s</td></tr>
+<tr><td>Cold max RSS</td><td>6,178.7 MB</td><td>602.9 MB</td><td>3,424.1 MB</td></tr>
+<tr><td>Warm max RSS</td><td>2,554.1 MB</td><td>262.0 MB</td><td>106.6 MB</td></tr>
+<tr><td>Incremental max RSS</td><td>3,596.2 MB</td><td>264.7 MB</td><td>123.2 MB</td></tr>
+</tbody></table></div>
+<h2 id="reproduce">Reproducibility</h2>
+<p>The benchmark was designed as a standalone project with a simple entry point:</p>
+<pre class="code"><code>./run.sh benchmark</code></pre>
+<p>The benchmark stores normalized results under:</p>
+<pre class="code"><code>results/normalized/
+├── census.json
+├── cold.json
+├── warm.json
+└── incremental.json</code></pre>
+<p>The detailed analysis, methodology, raw measurements, normalized diagnostics, limitations, and future benchmark plan are maintained as Markdown documentation alongside the benchmark project.</p>
+</main>
+<footer class="foot">Project Atlas · Repo Benchmarks · <b>@agenticcodingnewsletters</b></footer>
+<script>
+const data = {
+  cold: {GitNexus:64.955, Graphify:10.026, CodeGraph:9.913},
+  warm: {GitNexus:17.503, Graphify:4.787, CodeGraph:0.352},
+  incremental: {GitNexus:26.060, Graphify:4.837, CodeGraph:0.462}
+};
+const rss = {
+  cold: {GitNexus:6178.7, Graphify:602.9, CodeGraph:3424.1},
+  warm: {GitNexus:2554.1, Graphify:262.0, CodeGraph:106.6},
+  incremental: {GitNexus:3596.2, Graphify:264.7, CodeGraph:123.2}
+};
+const ratios = {
+  cold: {GitNexus:"4.18×", Graphify:"1.21×", CodeGraph:"2.84×"},
+  warm: {GitNexus:"1.73×", Graphify:"1.58×", CodeGraph:"0.72×"},
+  incremental: {GitNexus:"1.74×", Graphify:"1.58×", CodeGraph:"0.75×"}
+};
+const phases = ["cold","warm","incremental"];
+const tools = ["GitNexus","Graphify","CodeGraph"];
+
+function drawBars(target, source, selected="all", suffix=" s") {
+  const el = document.querySelector(target);
+  el.innerHTML = "";
+  const list = selected === "all" ? phases : [selected];
+  list.forEach(phase => {
+    const vals = source[phase];
+    const max = Math.max(...Object.values(vals));
+    const title = document.createElement("div");
+    title.className = "section-kicker";
+    title.style.margin = "22px 0 8px";
+    title.textContent = phase.toUpperCase();
+    el.appendChild(title);
+    tools.forEach(tool => {
+      const row = document.createElement("div");
+      row.className = "bar-row";
+      const width = Math.max(2, vals[tool]/max*100);
+      row.innerHTML = `<span>${tool}</span><div class="bar-track"><div class="bar-fill" style="width:${width}%"></div></div><span class="bar-value">${vals[tool].toFixed(3)}${suffix}</span>`;
+      el.appendChild(row);
+    });
+  });
+}
+function drawRatios() {
+  const el = document.querySelector("#cpu-chart");
+  el.innerHTML = "";
+  phases.forEach(p => tools.forEach(t => {
+    const d = document.createElement("div");
+    d.className = "ratio";
+    d.innerHTML = `<strong>${ratios[p][t]}</strong><small>${p.toUpperCase()} · ${t}</small>`;
+    el.appendChild(d);
+  }));
+}
+function drawRSS() { drawBars("#rss-chart", rss, "all", " MB"); }
+drawBars("#wall-chart", data);
+drawRSS();
+drawRatios();
+document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  drawBars("#wall-chart", data, btn.dataset.phase);
+}));
+</script>
+<button class="to-top" id="to-top" aria-label="Back to top" title="Back to top">↑</button>
+<script>
+const t=document.getElementById('to-top');
+addEventListener('scroll',()=>t.classList.toggle('show',scrollY>400),{passive:true});
+t.onclick=()=>scrollTo({top:0,behavior:'smooth'});
+</script>
+</body>
+</html>
