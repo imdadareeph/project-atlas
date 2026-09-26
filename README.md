@@ -14,7 +14,7 @@
 [![Last commit](https://img.shields.io/github/last-commit/imdadareeph/project-atlas)](https://github.com/imdadareeph/project-atlas/commits/main)
 [![Brand](https://img.shields.io/badge/%40agenticcodingnewsletters-e2a76f.svg)](#credits)
 
-<img src="img/project-atlas.png" alt="Project Atlas home page" width="900" />
+<img src="img/project-atlas.webp" alt="Project Atlas home page" width="900" />
 
 ### [→ Open Project Atlas](https://www.imdadareeph.com/project-atlas/)
 
