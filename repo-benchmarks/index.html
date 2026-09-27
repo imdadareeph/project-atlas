@@ -127,6 +127,20 @@ hr{border:0;border-top:1px solid var(--line);margin:80px 0}
 .hero::before{content:"";position:absolute;inset:0 calc(50% - 50vw);z-index:-1;background:linear-gradient(90deg,rgba(12,16,21,.55),transparent 60%),linear-gradient(180deg,transparent 70%,var(--bg))}
 .hero-video{position:absolute;top:0;left:50%;width:100vw;height:100%;transform:translateX(-50%);object-fit:cover;z-index:-2;background:var(--bg)}
 body{overflow-x:clip}
+
+/* scroll-driven camera (progressive enhancement; Chromium/Edge today, static elsewhere)
+   zoom = scale, pan = translate, dolly = foreground moves faster than background.
+   Uses the individual scale/translate properties so the video's transform:translateX(-50%) stays intact. */
+@supports (animation-timeline:scroll()){
+  .hero{clip-path:inset(0 -100vw)}   /* video scales past the hero box: clip vertically, keep full-bleed width */
+  .hero-video{animation:cam linear both;animation-timeline:scroll(root);animation-range:0px 80vh}
+  .hero>:not(.hero-video){animation:fore linear both;animation-timeline:scroll(root);animation-range:0px 60vh}
+  .chart-panel,.architecture,.boundary,.outlier-panel{animation:zin linear both;animation-timeline:view();animation-range:entry 0% cover 28%}
+  @keyframes cam{to{scale:1.22;translate:-2% -5%}}
+  @keyframes fore{to{translate:0 -60px;opacity:.15}}
+  @keyframes zin{from{scale:.96;opacity:.5}}
+}
+@media(prefers-reduced-motion:reduce){.hero-video,.hero>*,.chart-panel,.architecture,.boundary,.outlier-panel{animation:none!important}}
 </style>
 </head>
 <body id="top">

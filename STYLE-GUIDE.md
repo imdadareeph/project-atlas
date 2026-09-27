@@ -329,12 +329,29 @@ function drawBars(target,source,selected="all",suffix=" s"){
 ```css
 .bar-row{display:grid;grid-template-columns:105px 1fr 90px;gap:15px;align-items:center;margin:16px 0;font:12px var(--mono)}
 .bar-track{height:20px;background:var(--line)}  /* source hardcodes #1a232c; use --track (below) if you want to match exactly */
-.bar-fill{height:100%;background:var(--accent);transform-origin:left;animation:grow .8s ease both}
+.bar-fill{height:100%;background:var(--accent);transform-origin:left}
 .bar-value{text-align:right;color:var(--ink)}
 .compact .bar-row{grid-template-columns:85px 1fr 85px}          /* narrower variant for side-by-side panels */
 @keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 ```
 Colour convention: **primary/winner or outlier = `--accent`**, everything else = `--accent2`.
+
+**Scroll-triggered, staggered, replaying (used on both pages).** Bars sit at zero until their chart scrolls into view, grow left to right with a per-row stagger, and replay every time the chart re-enters (scrolling up or down). Ported from `imdadareeph.github.io`.
+```html
+<script>document.documentElement.classList.add('js')</script>   <!-- in <head>: gate so no-JS visitors still see full bars -->
+<div id="chart" class="bars reveal repeat">…rows, each with style="--i:0", "--i:1"…</div>
+```
+```css
+.js .bar-fill,.js .track i{transform:scaleX(0)}
+.in .bar-fill,.in .track i{animation:grow .9s ease both;animation-delay:calc(var(--i,0)*70ms)}
+.js .reveal{opacity:0;transform:translateY(16px);transition:opacity .6s ease,transform .6s ease}
+.js .reveal.in{opacity:1;transform:none}
+```
+```js
+const again=new IntersectionObserver(es=>es.forEach(e=>e.target.classList.toggle('in',e.isIntersecting)),{threshold:.2});
+document.querySelectorAll('.repeat').forEach(el=>again.observe(el));
+```
+For JS-drawn bars set the stagger index as you build rows: `row.style.setProperty('--i', n++)`. Redrawing the chart (tabs) keeps `.in` on the container, so the animation replays on each tab click.
 
 ### Static scale bars (no animation)
 Used for size comparisons (`.repo-row`). Label | track | bold value, fill width inline, **first row accent, the rest `--accent2`**. Slightly taller gap than `.bar-row`, thinner track (18px), no `grow` animation.
@@ -403,11 +420,11 @@ footer b{color:var(--accent);font-weight:600}
 
 ## 9. Motion & behaviour
 
-**Animation budget is tiny on purpose.** Four UI motions exist (plus the ambient looping hero video, which is paused for reduced-motion visitors):
+**Animation budget is tiny on purpose.** A handful of UI motions, the ambient looping hero video (still for reduced-motion visitors), one scroll-camera effect and, on the home page only, one pinned signature scene:
 
 | Motion | Where | Spec |
 |---|---|---|
-| Bar grow | `.bar-fill` | `scaleX(0→1)` from left, `.8s ease` |
+| Bar grow | `.bar-fill` | `scaleX(0→1)` from left, `.9s ease`, 70ms stagger per row, replays on every scroll into view (§8) |
 | Card lift | `.card:hover` | `translateY(-3px)` + border/background shift, `.2s` |
 | Back-to-top | `.to-top` | fade + `translateY(8px→0)`, `.2s` |
 | Smooth scroll | `html` | `scroll-behavior:smooth` |
@@ -432,6 +449,67 @@ addEventListener('scroll',()=>t.classList.toggle('show',scrollY>400),{passive:tr
 t.onclick=()=>scrollTo({top:0,behavior:'smooth'});
 ```
 The tiny `<script>` in `<head>` (see §1) restores the saved theme before first paint. Keep it there.
+
+### Scroll camera: zoom, pan, dolly (Tier 1, CSS only)
+
+Camera moves on a flat page: **zoom = scale**, **pan = translate**, **dolly = foreground moves faster than background** (parallax depth). Scroll-driven CSS animations tie them to scroll position with no JS. Works in Chromium/Edge; other browsers just see the static page (progressive enhancement). Use the individual `scale` / `translate` properties: they compose with any existing `transform`, so a `translateX(-50%)` centring trick is not overwritten.
+```css
+@supports (animation-timeline:scroll()){
+  .hero{clip-path:inset(0 -100vw)}        /* video scales past the hero box: clip vertically, keep full-bleed width */
+  .hero-video{animation:cam linear both;animation-timeline:scroll(root);animation-range:0px 80vh}
+  .hero>:not(.hero-video){animation:fore linear both;animation-timeline:scroll(root);animation-range:0px 60vh}
+  .card{animation:zin linear both;animation-timeline:view();animation-range:entry 0% cover 28%}   /* panels scale in on entry */
+  @keyframes cam{to{scale:1.22;translate:-2% -5%}}        /* zoom + pan */
+  @keyframes fore{to{translate:0 -60px;opacity:.15}}      /* dolly: text leaves faster than the video */
+  @keyframes zin{from{scale:.96;opacity:.5}}
+}
+@media(prefers-reduced-motion:reduce){.hero-video,.hero>*,.card{animation:none!important}}
+```
+Notes: put `animation-timeline` **after** the `animation` shorthand (the shorthand resets it). The `.01ms` reduced-motion guard above is not enough for scroll-driven animations, so set `animation:none` explicitly as shown. Don't scale the video past about 1.25 (720p source softens).
+
+### Pinned signature scene (Tier 2, GSAP + ScrollTrigger)
+
+Use **once per site**, on the landing page. The hero pins, the camera dollies into the artwork (zoom + pan toward a focal point), the headline flies through and fades, and a caption resolves before the page releases. Everything is one scrubbed timeline, so scrolling back plays it in reverse.
+```html
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js" defer></script>
+<!-- inside .hero, after the meta row: -->
+<div class="hero-cap" aria-hidden="true"><b>THE ATLAS</b><span>Every folder, a place on the map.</span></div>
+```
+```css
+.hero-video{left:calc(50% - 50vw)}      /* no transform: GSAP owns transform in the scene */
+.hero-cap{display:none;position:absolute;left:0;bottom:16%;max-width:640px;pointer-events:none}
+.gsap-scene .hero-cap{display:block}
+.gsap-scene .hero{min-height:calc(100vh - 56px)}
+/* Tier 1 hero rules become the fallback: */
+html:not(.gsap-scene) .hero-video{animation:cam …}   /* and the same prefix on the .hero>:not(.hero-video) rule */
+```
+```js
+addEventListener('DOMContentLoaded',()=>{
+  if(!window.gsap||!window.ScrollTrigger)return;             // CDN failed → Tier 1 fallback
+  gsap.registerPlugin(ScrollTrigger);
+  gsap.matchMedia().add('(min-width:761px) and (prefers-reduced-motion:no-preference)',()=>{
+    const hero=document.querySelector('.hero'),vid=hero.querySelector('.hero-video'),cap=hero.querySelector('.hero-cap'),
+          text=gsap.utils.toArray('.hero > :not(.hero-video):not(.hero-cap)');
+    document.documentElement.classList.add('gsap-scene');
+    gsap.set(vid,{transformOrigin:'72% 42%'});                // focal point of the artwork
+    gsap.timeline({defaults:{ease:'none'},scrollTrigger:{trigger:hero,start:'top 56px',end:()=>'+='+innerHeight*1.2,pin:true,scrub:.6,anticipatePin:1,invalidateOnRefresh:true}})
+      .to(vid,{scale:1.75,xPercent:-7,yPercent:3,duration:1},0)                                   // zoom + pan into the focal point
+      .to(text,{scale:1.25,y:-50,opacity:0,transformOrigin:'0% 50%',stagger:.04,duration:.5},0)   // dolly-through
+      .fromTo(cap,{opacity:0,y:30},{opacity:1,y:0,duration:.35},.55);                             // arrival
+    return()=>document.documentElement.classList.remove('gsap-scene');
+  });
+});
+```
+Rules: desktop and motion-OK only (`matchMedia`); avoid long pins on mobile; `start:'top 56px'` = below the 56px navbar; tune `transformOrigin` to wherever the subject sits in your image; the caption is decorative (`aria-hidden`) because it repeats page content. If a test browser has `scroll-behavior:smooth`, set it to `auto` when scripting scroll positions or readings will be off.
+
+### Motion decision ladder
+
+1. **CSS** (transitions, `view()` / `scroll()` timelines) for anything ordinary.
+2. **GSAP + ScrollTrigger** only for a pinned or multi-step scrubbed scene, and only one per site.
+3. **Three.js** only for genuine 3D (real dolly = `camera.position.z`, pan = `position.x/y`, zoom = `camera.fov` then `updateProjectionMatrix()`).
+
+Tiers: micro 100 to 300ms (hover, buttons), UI 300 to 900ms (cards, bars, reveals), cinematic = scroll-controlled. Not every element should be cinematic.
 
 ---
 
@@ -535,5 +613,6 @@ Optional token to unify the bar track and scale track across themes:
 - [ ] Sections: `kicker` (`01 · NAME`) → `h2` → content
 - [ ] Only tokens for colour, no raw hex in new components
 - [ ] Hero media paths correct for folder depth (`img/`, `videos/` vs `../img/`, `../videos/`); videos muted, no audio, seamless loop
-- [ ] Reduced-motion block present
+- [ ] Reduced-motion block present (also `animation:none` for any scroll-driven / GSAP effect)
+- [ ] Scroll effects verified scrolling both down and up; static fallback works with JS off and at phone width
 - [ ] Test both themes and a 375px-wide viewport
