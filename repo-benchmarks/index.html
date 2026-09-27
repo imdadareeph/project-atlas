@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="A technical editorial about benchmarking GitNexus, Graphify, and CodeGraph using an independent local benchmark harness.">
 <title>How I Benchmarked GitNexus, Graphify, and CodeGraph</title>
+<script>document.documentElement.classList.add('js')</script>
 <style>
 :root{
   --bg:#0c1015;--surface:#111820;--surface2:#151e27;--ink:#edf1f4;--muted:#9ca9b5;
@@ -40,7 +41,13 @@ main{max-width:var(--max);margin:auto;padding:0 28px 120px}
 .tab.active,.tab:hover{color:var(--bg);background:var(--accent);border-color:var(--accent)}
 .bar-row{display:grid;grid-template-columns:105px 1fr 90px;gap:15px;align-items:center;margin:16px 0;font:12px var(--mono)}
 .bar-track{height:20px;background:#1a232c;position:relative}
-.bar-fill{height:100%;background:var(--accent);transform-origin:left;animation:grow .8s ease both}
+.bar-fill,.track i{transform-origin:left}
+.bar-fill{height:100%;background:var(--accent)}
+/* bar animation (ported from imdadareeph.github.io): bars start at 0, grow staggered when .in is on the chart, replay on every scroll into view */
+.js .bar-fill,.js .track i{transform:scaleX(0)}
+.in .bar-fill,.in .track i{animation:grow .9s ease both;animation-delay:calc(var(--i,0)*70ms)}
+.js .reveal{opacity:0;transform:translateY(16px);transition:opacity .6s ease,transform .6s ease}
+.js .reveal.in{opacity:1;transform:none}
 .bar-value{text-align:right;color:var(--ink)}
 .chart-note,.annotation{font-size:12px;color:var(--faint);margin-top:22px}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:24px}
@@ -117,7 +124,8 @@ hr{border:0;border-top:1px solid var(--line);margin:80px 0}
 .to-top.show{opacity:1;visibility:visible;transform:none}
 .to-top:hover{background:var(--accent);color:var(--bg)}
 .hero{position:relative;isolation:isolate}
-.hero::before{content:"";position:absolute;inset:0 calc(50% - 50vw);z-index:-1;background:linear-gradient(90deg,rgba(12,16,21,.55),transparent 60%),linear-gradient(180deg,transparent 70%,var(--bg)),url(../img/bg.webp) center/cover no-repeat}
+.hero::before{content:"";position:absolute;inset:0 calc(50% - 50vw);z-index:-1;background:linear-gradient(90deg,rgba(12,16,21,.55),transparent 60%),linear-gradient(180deg,transparent 70%,var(--bg))}
+.hero-video{position:absolute;top:0;left:50%;width:100vw;height:100%;transform:translateX(-50%);object-fit:cover;z-index:-2;background:var(--bg)}
 body{overflow-x:clip}
 </style>
 </head>
@@ -133,6 +141,7 @@ body{overflow-x:clip}
 <main>
 
 <section class="hero">
+  <video class="hero-video" id="hero-video" muted loop playsinline preload="auto" aria-hidden="true" poster="../img/bg.webp" src="../videos/dark-loop.mp4"></video>
   <div class="eyebrow">REPOSITORY INTELLIGENCE · LOCAL BENCHMARK</div>
   <h1>How I Benchmarked <span>GitNexus</span>, <span>Graphify</span>, and <span>CodeGraph</span> on the Same Machine</h1>
   <p class="dek">One machine. Three repositories. One independent benchmark harness.</p>
@@ -165,14 +174,14 @@ body{overflow-x:clip}
         <button class="tab" data-phase="incremental">INCREMENTAL</button>
       </div>
     </div>
-    <div id="wall-chart" class="bars"></div>
+    <div id="wall-chart" class="bars reveal repeat"></div>
     <div class="chart-note">Measured on these specific repositories and native commands. This is not a universal performance ranking.</div>
   </div>
 
   <div class="grid-2">
     <div class="chart-panel">
       <div class="chart-head"><span class="label">PEAK RSS</span><span class="note">largest observed single process</span></div>
-      <div id="rss-chart" class="bars compact"></div>
+      <div id="rss-chart" class="bars compact reveal repeat"></div>
     </div>
     <div class="chart-panel">
       <div class="chart-head"><span class="label">CPU / WALL</span><span class="note">diagnostic ratio</span></div>
@@ -232,10 +241,10 @@ body{overflow-x:clip}
 <section class="visual-section" id="workloads">
   <div class="section-kicker">04 · WORKLOAD BOUNDARY</div>
   <h2>The repositories are not equivalent workloads.</h2>
-  <div class="repo-scale">
-    <div class="repo-row"><span>GitNexus</span><div class="track"><i style="width:100%"></i></div><b>3.501M LOC</b></div>
-    <div class="repo-row"><span>CodeGraph</span><div class="track"><i style="width:67.2%"></i></div><b>2.353M LOC</b></div>
-    <div class="repo-row"><span>Graphify</span><div class="track"><i style="width:4.85%"></i></div><b>0.170M LOC</b></div>
+  <div class="repo-scale reveal repeat">
+    <div class="repo-row" style="--i:0"><span>GitNexus</span><div class="track"><i style="width:100%"></i></div><b>3.501M LOC</b></div>
+    <div class="repo-row" style="--i:1"><span>CodeGraph</span><div class="track"><i style="width:67.2%"></i></div><b>2.353M LOC</b></div>
+    <div class="repo-row" style="--i:2"><span>Graphify</span><div class="track"><i style="width:4.85%"></i></div><b>0.170M LOC</b></div>
   </div>
   <p class="annotation">LOC is useful for a scaling diagnostic, but it does not fully capture language mix, file-size distribution, graph density, generated code, parsing complexity, or the amount of work performed by each implementation.</p>
 </section>
@@ -506,6 +515,7 @@ function drawBars(target, source, selected="all", suffix=" s") {
   const el = document.querySelector(target);
   el.innerHTML = "";
   const list = selected === "all" ? phases : [selected];
+  let n = 0;
   list.forEach(phase => {
     const vals = source[phase];
     const max = Math.max(...Object.values(vals));
@@ -517,6 +527,7 @@ function drawBars(target, source, selected="all", suffix=" s") {
     tools.forEach(tool => {
       const row = document.createElement("div");
       row.className = "bar-row";
+      row.style.setProperty("--i", n++);
       const width = Math.max(2, vals[tool]/max*100);
       row.innerHTML = `<span>${tool}</span><div class="bar-track"><div class="bar-fill" style="width:${width}%"></div></div><span class="bar-value">${vals[tool].toFixed(3)}${suffix}</span>`;
       el.appendChild(row);
@@ -545,6 +556,12 @@ document.querySelectorAll(".tab").forEach(btn => btn.addEventListener("click", (
 </script>
 <button class="to-top" id="to-top" aria-label="Back to top" title="Back to top">↑</button>
 <script>
+// hero video: autoplay unless the visitor prefers reduced motion (poster stays)
+const hv=document.getElementById('hero-video');
+if(!matchMedia('(prefers-reduced-motion:reduce)').matches)hv.play().catch(()=>{});
+// bars replay every time they scroll into view
+const again=new IntersectionObserver(es=>es.forEach(e=>e.target.classList.toggle('in',e.isIntersecting)),{threshold:.2});
+document.querySelectorAll('.repeat').forEach(el=>again.observe(el));
 const t=document.getElementById('to-top');
 addEventListener('scroll',()=>t.classList.toggle('show',scrollY>400),{passive:true});
 t.onclick=()=>scrollTo({top:0,behavior:'smooth'});
